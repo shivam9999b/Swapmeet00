@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SwapMeet · Connect with Strangers</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-retweet"></i>
+                <span>SwapMeet</span>
+            </div>
+            <nav class="nav">
+                <a href="#" class="active">Home</a>
+                <a href="#about">About</a>
+                <a href="#safety">Safety</a>
+                <a href="#contact">Contact</a>
+            </nav>
+            <div class="header-right">
+                <!-- Admin Link - Visible only to admins -->
+                <a href="admin.html" class="admin-link" id="adminLink" style="display: none;">
+                    <i class="fas fa-crown"></i> Admin
+                </a>
+                <div class="user-status" id="userStatus">
+                    <button class="login-btn-header" id="headerLoginBtn">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Connect with <span class="highlight">Strangers</span> Instantly</h1>
+                <p>Meet new people from around the world through random video chat. Safe, anonymous, and fun!</p>
+                <div class="hero-buttons">
+                    <button class="btn-primary" id="startVideoBtn">
+                        <i class="fas fa-video"></i> Video Chat
+                    </button>
+                    <button class="btn-secondary" id="startTextBtn">
+                        <i class="fas fa-comment"></i> Text Chat
+                    </button>
+                </div>
+                <div class="stats">
+                    <div class="stat">
+                        <span class="number">10K+</span>
+                        <span class="label">Active Users</span>
+                    </div>
+                    <div class="stat">
+                        <span class="number">50K+</span>
+                        <span class="label">Daily Connections</span>
+                    </div>
+                    <div class="stat">
+                        <span class="number">4.8★</span>
+                        <span class="label">User Rating</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-image">
+                <div class="preview-box">
+                    <i class="fas fa-play-circle"></i>
+                    <span>Connect Now</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="features" id="about">
+            <h2>Why SwapMeet?</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <i class="fas fa-shield-alt"></i>
+                    <h3>Safe & Anonymous</h3>
+                    <p>No personal info required. Chat with random people securely.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-globe"></i>
+                    <h3>Global Community</h3>
+                    <p>Connect with people from over 100 countries worldwide.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-bolt"></i>
+                    <h3>Instant Matching</h3>
+                    <p>Find your next conversation partner in seconds.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-heart"></i>
+                    <h3>Interest-Based</h3>
+                    <p>Match with people who share your interests.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Safety -->
+        <section class="safety" id="safety">
+            <h2>Stay Safe on SwapMeet</h2>
+            <div class="safety-grid">
+                <div class="safety-item">
+                    <i class="fas fa-user-secret"></i>
+                    <h4>Stay Anonymous</h4>
+                    <p>You don't need to share your real name or personal details.</p>
+                </div>
+                <div class="safety-item">
+                    <i class="fas fa-flag"></i>
+                    <h4>Report Users</h4>
+                    <p>Report any inappropriate behavior instantly.</p>
+                </div>
+                <div class="safety-item">
+                    <i class="fas fa-ban"></i>
+                    <h4>Block & Skip</h4>
+                    <p>Skip or block anyone who makes you uncomfortable.</p>
+                </div>
+                <div class="safety-item">
+                    <i class="fas fa-shield-virus"></i>
+                    <h4>No Recording</h4>
+                    <p>Our platform doesn't record or store your video calls.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer" id="contact">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <i class="fas fa-retweet"></i>
+                    <span>SwapMeet</span>
+                    <p>Connecting people worldwide</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Quick Links</h4>
+                    <a href="#">Home</a>
+                    <a href="#about">About</a>
+                    <a href="#safety">Safety</a>
+                    <a href="#contact">Contact</a>
+                </div>
+                <div class="footer-social">
+                    <h4>Follow Us</h4>
+                    <div class="social-icons">
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-youtube"></i></a>
+                        <a href="#"><i class="fab fa-discord"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 SwapMeet. All rights reserved.</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <span class="close" id="closeModal">&times;</span>
+            <div class="modal-header">
+                <h2>Welcome to SwapMeet</h2>
+                <p>Sign in to start connecting</p>
+            </div>
+            
+            <button class="google-btn" id="googleLoginBtn">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
+                Continue with Google
+            </button>
+
+            <div class="divider"><span>or</span></div>
+
+            <form id="loginForm">
+                <div class="input-group">
+                    <input type="email" id="email" placeholder="Email address" required />
+                </div>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="Password" required />
+                    <span class="toggle-pw" id="togglePw">
+                        <i class="fas fa-eye"></i>
+                    </span>
+                </div>
+                <button type="submit" class="login-btn">Sign In</button>
+            </form>
+
+            <div class="modal-footer">
+                <p>Don't have an account? <a href="#" id="showSignup">Join Now</a></p>
+                <a href="#" id="forgotPassword" class="forgot-link">Forgot password?</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signup Modal -->
+    <div class="modal" id="signupModal">
+        <div class="modal-content">
+            <span class="close" id="closeSignupModal">&times;</span>
+            <div class="modal-header">
+                <h2>Create Account</h2>
+                <p>Join the SwapMeet community</p>
+            </div>
+            
+            <form id="signupForm">
+                <div class="input-group">
+                    <input type="text" id="signupName" placeholder="Full name" required />
+                </div>
+                <div class="input-group">
+                    <input type="email" id="signupEmail" placeholder="Email address" required />
+                </div>
+                <div class="input-group">
+                    <input type="password" id="signupPassword" placeholder="Password (min 6 chars)" required minlength="6" />
+                </div>
+                <button type="submit" class="login-btn">Create Account</button>
+            </form>
+
+            <div class="divider"><span>or</span></div>
+
+            <button class="google-btn" id="signupGoogleBtn">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
+                Sign up with Google
+            </button>
+
+            <div class="modal-footer">
+                <p>Already have an account? <a href="#" id="showLogin">Sign In</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message -->
+    <div id="message" class="message" style="display: none;"></div>
+
+    <!-- Firebase SDKs -->
+    <!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script src="firebase-config.js"></script>
+<script src="auth.js"></script>
+
+</body>
+</html>

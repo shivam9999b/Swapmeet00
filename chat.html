@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SwapMeet · Chat</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <style>
+        /* ============================================
+           RESET & BASE
+           ============================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a12;
+            color: #fff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ============================================
+           MAIN CONTAINER
+           ============================================ */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #0a0a12;
+            max-width: 500px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* ============================================
+           TOP HEADER
+           ============================================ */
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(20, 20, 31, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .back-btn {
+            color: #8a8a9e;
+            font-size: 18px;
+            text-decoration: none;
+            transition: color 0.3s;
+            padding: 4px 8px;
+            border-radius: 8px;
+        }
+        .back-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .brand-name {
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .brand-name i {
+            color: #8a5cb8;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .online-count {
+            font-size: 12px;
+            color: #8a8a9e;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .online-count i {
+            color: #34d399;
+            font-size: 8px;
+        }
+        .online-count span {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .settings-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: none;
+            color: #8a8a9e;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .settings-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: none;
+            color: #8a8a9e;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        /* ============================================
+           VIDEO AREA (50/50 Equal Split)
+           ============================================ */
+        .video-area {
+            flex: 1;
+            position: relative;
+            background: #0d0d1a;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Remote Video (Stranger) - Top 50% */
+        .remote-video {
+            flex: 1 1 50%;
+            height: 50%;
+            position: relative;
+            background: #111122;
+            min-height: 0;
+        }
+
+        .remote-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .remote-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 5;
+            gap: 10px;
+        }
+        .remote-overlay i {
+            font-size: 48px;
+            color: rgba(255, 255, 255, 0.1);
+        }
+        .remote-overlay .title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .remote-overlay .sub {
+            font-size: 13px;
+            color: #8a8a9e;
+        }
+
+        /* Stranger Label */
+        .stranger-label {
+            position: absolute;
+            top: 12px;
+            left: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 4px 14px;
+            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 6;
+            color: #8a5cb8;
+            border: 1px solid rgba(138, 92, 184, 0.2);
+        }
+
+        /* Status Badge */
+        .status-badge {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            padding: 4px 14px;
+            border-radius: 30px;
+            font-size: 12px;
+            color: #8a8a9e;
+            z-index: 6;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-dot.searching {
+            background: #fbbf24;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        .status-dot.connected {
+            background: #34d399;
+            animation: none;
+        }
+        .status-dot.disconnected {
+            background: #ef4444;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.8); }
+        }
+
+        /* Local Video (You) - Bottom 50% */
+        .local-video {
+            flex: 1 1 50%;
+            height: 50%;
+            position: relative;
+            background: #111122;
+            border-top: 2px solid rgba(255, 255, 255, 0.1);
+            min-height: 0;
+            max-height: none;
+        }
+
+        .local-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .local-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.6);
+            font-size: 30px;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .you-label {
+            position: absolute;
+            bottom: 12px;
+            left: 16px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 12px;
+            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 6;
+            color: #34d399;
+            border: 1px solid rgba(52, 211, 153, 0.2);
+        }
+
+        /* ============================================
+           VIDEO CONTROLS (Floating Center)
+           ============================================ */
+        .video-controls {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(12px);
+            padding: 8px 14px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .ctrl-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+        }
+        .ctrl-btn:hover {
+            background: rgba(255, 255, 255, 0.18);
+            transform: scale(1.05);
+        }
+
+        .ctrl-btn.muted {
+            background: rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+
+        .ctrl-btn.next {
+            background: linear-gradient(135deg, #5b2b8c, #3b1b5e);
+            padding: 0 18px;
+            border-radius: 30px;
+            width: auto;
+            gap: 6px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .ctrl-btn.next:hover {
+            box-shadow: 0 8px 24px rgba(91, 43, 140, 0.4);
+        }
+
+        .ctrl-btn.end {
+            background: rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+        .ctrl-btn.end:hover {
+            background: rgba(239, 68, 68, 0.5);
+        }
+
+        /* ============================================
+           TEXT CHAT - Bottom
+           ============================================ */
+        .text-chat {
+            background: rgba(20, 20, 31, 0.95);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            height: 140px;
+            flex-shrink: 0;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            flex-shrink: 0;
+        }
+        .chat-header i {
+            color: #8a5cb8;
+            font-size: 14px;
+        }
+        .chat-header span {
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .chat-header .msg-count {
+            margin-left: auto;
+            font-size: 11px;
+            color: #8a8a9e;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2px 10px;
+            border-radius: 20px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .chat-messages .system-msg {
+            text-align: center;
+            color: #6b6b7a;
+            font-size: 12px;
+            padding: 6px;
+        }
+        .chat-messages .system-msg i {
+            margin-right: 4px;
+        }
+
+        .chat-messages .msg {
+            padding: 6px 14px;
+            border-radius: 16px;
+            max-width: 80%;
+            font-size: 13px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-messages .msg.self {
+            background: #5b2b8c;
+            color: #fff;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-messages .msg.other {
+            background: rgba(255, 255, 255, 0.06);
+            color: #d4d4e0;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-messages .msg .sender {
+            font-size: 10px;
+            opacity: 0.5;
+            margin-bottom: 2px;
+        }
+
+        .chat-input-area {
+            display: flex;
+            padding: 6px 12px 10px;
+            gap: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            flex-shrink: 0;
+        }
+
+        .chat-input-area input {
+            flex: 1;
+            padding: 8px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 30px;
+            background: rgba(255, 255, 255, 0.04);
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        .chat-input-area input:focus {
+            border-color: #5b2b8c;
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .chat-input-area input::placeholder {
+            color: #6b6b7a;
+        }
+
+        .chat-input-area button {
+            width: 38px;
+            height: 38px;
+            border: none;
+            border-radius: 50%;
+            background: #5b2b8c;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .chat-input-area button:hover {
+            background: #3b1b5e;
+            transform: scale(1.05);
+        }
+
+        /* ============================================
+           MODAL
+           ============================================ */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #1a1a2e;
+            border-radius: 20px;
+            padding: 24px 28px;
+            max-width: 380px;
+            width: 90%;
+            position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .modal-content .close {
+            position: absolute;
+            top: 10px;
+            right: 18px;
+            font-size: 26px;
+            cursor: pointer;
+            color: #8a8a9e;
+            transition: color 0.3s;
+        }
+        .modal-content .close:hover {
+            color: #fff;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 4px;
+            font-size: 20px;
+        }
+        .modal-content p {
+            color: #8a8a9e;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .report-options {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .report-option {
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+            font-size: 14px;
+        }
+        .report-option:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        /* ============================================
+           LOADING OVERLAY
+           ============================================ */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a0a12;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .loading-overlay.hidden {
+            display: none;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #5b2b8c;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-text {
+            color: #8a8a9e;
+            font-size: 14px;
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media screen and (max-width: 480px) {
+            .chat-container {
+                max-width: 100%;
+            }
+            .top-header {
+                padding: 10px 12px;
+            }
+            .brand-name {
+                font-size: 14px;
+            }
+            .online-count {
+                font-size: 11px;
+            }
+            .online-count span {
+                font-size: 11px;
+            }
+            .remote-overlay i {
+                font-size: 36px;
+            }
+            .remote-overlay .title {
+                font-size: 16px;
+            }
+            .remote-overlay .sub {
+                font-size: 12px;
+            }
+            .video-controls {
+                padding: 6px 10px;
+                gap: 6px;
+            }
+            .ctrl-btn {
+                width: 34px;
+                height: 34px;
+                font-size: 13px;
+            }
+            .ctrl-btn.next {
+                padding: 0 12px;
+                font-size: 12px;
+            }
+            .text-chat {
+                height: 120px;
+            }
+            .chat-messages {
+                padding: 6px 12px;
+            }
+            .chat-messages .msg {
+                font-size: 12px;
+                padding: 5px 12px;
+            }
+            .chat-input-area {
+                padding: 4px 10px 8px;
+            }
+            .chat-input-area input {
+                font-size: 13px;
+                padding: 6px 12px;
+            }
+            .chat-input-area button {
+                width: 34px;
+                height: 34px;
+                font-size: 13px;
+            }
+            .stranger-label {
+                font-size: 11px;
+                padding: 3px 10px;
+                top: 8px;
+                left: 10px;
+            }
+            .status-badge {
+                font-size: 11px;
+                padding: 3px 10px;
+                top: 8px;
+                right: 10px;
+            }
+            .you-label {
+                font-size: 10px;
+                padding: 2px 10px;
+                bottom: 8px;
+                left: 10px;
+            }
+            .settings-btn {
+                width: 30px;
+                height: 30px;
+                font-size: 14px;
+            }
+            .logout-btn {
+                width: 30px;
+                height: 30px;
+                font-size: 14px;
+            }
+        }
+
+        @media screen and (max-width: 380px) {
+            .text-chat {
+                height: 100px;
+            }
+            .chat-header span {
+                font-size: 12px;
+            }
+            .video-controls {
+                gap: 4px;
+            }
+            .ctrl-btn {
+                width: 30px;
+                height: 30px;
+                font-size: 12px;
+            }
+            .ctrl-btn.next {
+                padding: 0 10px;
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading SwapMeet...</div>
+    </div>
+
+    <!-- Main Chat Container -->
+    <div class="chat-container" id="chatContainer" style="display:none;">
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <a href="index.html" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <span class="brand-name">
+                    <i class="fas fa-retweet"></i> SwapMeet
+                </span>
+            </div>
+            <div class="header-right">
+                <span class="online-count">
+                    <i class="fas fa-circle"></i>
+                    <span id="onlineUsers">275,334</span>
+                </span>
+                <button class="settings-btn" id="settingsBtn" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button class="logout-btn" id="logoutBtn" title="Logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Video Area -->
+        <div class="video-area">
+            <!-- Remote Video (Stranger) - Top 50% -->
+            <div class="remote-video" id="remoteVideoContainer">
+                <video id="remoteVideo" autoplay playsinline></video>
+                
+                <div class="remote-overlay" id="remoteOverlay">
+                    <i class="fas fa-user-circle"></i>
+                    <span class="title">Looking for someone...</span>
+                    <span class="sub">Please wait</span>
+                </div>
+
+                <div class="stranger-label">Stranger</div>
+
+                <div class="status-badge" id="statusBadge">
+                    <span class="status-dot searching"></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
+            </div>
+
+            <!-- Local Video (You) - Bottom 50% -->
+            <div class="local-video" id="localVideoContainer">
+                <video id="localVideo" autoplay playsinline muted></video>
+                <div class="local-overlay" id="localOverlay">
+                    <i class="fas fa-video-slash"></i>
+                </div>
+                <div class="you-label">You</div>
+            </div>
+
+            <!-- Video Controls -->
+            <div class="video-controls">
+                <button class="ctrl-btn" id="micToggle" title="Microphone">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button class="ctrl-btn" id="camToggle" title="Camera">
+                    <i class="fas fa-video"></i>
+                </button>
+                <button class="ctrl-btn next" id="nextBtn" title="Next">
+                    <i class="fas fa-forward"></i> Next
+                </button>
+                <button class="ctrl-btn end" id="endBtn" title="End Call">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+                <button class="ctrl-btn" id="reportBtn" title="Report">
+                    <i class="fas fa-flag"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Text Chat - Bottom -->
+        <div class="text-chat">
+            <div class="chat-header">
+                <i class="fas fa-comment"></i>
+                <span>Live Chat</span>
+                <span class="msg-count" id="msgCount">0</span>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="system-msg">
+                    <i class="fas fa-info-circle"></i> Start chatting with your partner!
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Type a message..." />
+                <button id="sendBtn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div class="modal" id="reportModal">
+        <div class="modal-content">
+            <span class="close" id="closeReport">&times;</span>
+            <h3>Report User</h3>
+            <p>Why are you reporting this user?</p>
+            <div class="report-options">
+                <button class="report-option" data-reason="Inappropriate behavior">Inappropriate behavior</button>
+                <button class="report-option" data-reason="Harassment">Harassment</button>
+                <button class="report-option" data-reason="Spam">Spam</button>
+                <button class="report-option" data-reason="Underage user">Underage user</button>
+                <button class="report-option" data-reason="Other">Other</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="auth.js"></script>
+    <script src="chat.js"></script>
+</body>
+</html>
