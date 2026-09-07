@@ -2,11 +2,15 @@
 // FULLY UPDATED & FIXED CHAT.JS (FIRESTORE)
 // ============================================
 
-let localStream;
-let peerConnection;
+let localStream = null;
+let peerConnection = null;
 let currentRoomId = null;
 let userId = null;
 let unsubscribeRoom = null;
+let unsubscribeMessages = null;
+let unsubscribeCallerCandidates = null;
+let unsubscribeCalleeCandidates = null;
+let messageCounter = 0;
 
 const servers = {
     iceServers: [
@@ -27,7 +31,6 @@ const chatMessages = document.getElementById('chatMessages');
 const chatInput = document.getElementById('chatInput');
 const msgCount = document.getElementById('msgCount');
 const reportModal = document.getElementById('reportModal');
-let messageCounter = 0;
 
 // 1. CAMERA & MIC INITIALIZATION
 async function startLocalStream() {
@@ -38,7 +41,7 @@ async function startLocalStream() {
         });
         if (localVideo) localVideo.srcObject = localStream;
         if (localOverlay) localOverlay.style.display = "none";
-        
+
         document.getElementById('loadingOverlay')?.classList.add('hidden');
         document.getElementById('chatContainer')?.setAttribute('style', 'display: flex !important');
     } catch (err) {
@@ -49,7 +52,7 @@ async function startLocalStream() {
 
 // 2. FIRESTORE MATCHMAKING
 async function findStranger() {
-    resetConnection();
+    await resetConnection();
     updateStatus("Searching...", "searching");
     if (remoteOverlay) remoteOverlay.style.display = "flex";
 
@@ -75,18 +78,17 @@ async function findStranger() {
         await waitingRef.doc(userId).set({
             created: firebase.firestore.FieldValue.serverTimestamp()
         });
-
         await createRoom(currentRoomId);
-
     } catch (error) {
         console.error("Matchmaking Error:", error);
+        updateStatus("Connection Error", "disconnected");
     }
 }
 
 // 3. CREATE ROOM (CALLER / OFFERER)
 async function createRoom(roomId) {
     const roomRef = db.collection('rooms').doc(roomId);
-    
+
     peerConnection = new RTCPeerConnection(servers);
     setupPeerListeners();
 
@@ -101,7 +103,6 @@ async function createRoom(roomId) {
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
 
-    // FIX: Parent Document Direct Create (Fixes 'document does not exist' error)
     await roomRef.set({
         offer: {
             type: offer.type,
@@ -120,7 +121,7 @@ async function createRoom(roomId) {
     });
 
     // Listen for Callee ICE Candidates
-    roomRef.collection('calleeCandidates').onSnapshot((snapshot) => {
+    unsubscribeCalleeCandidates = roomRef.collection('calleeCandidates').onSnapshot((snapshot) => {
         snapshot.docChanges().forEach(async (change) => {
             if (change.type === 'added') {
                 const candidate = new RTCIceCandidate(change.doc.data());
@@ -164,7 +165,7 @@ async function joinRoom(roomId) {
         });
 
         // Listen for Caller ICE Candidates
-        roomRef.collection('callerCandidates').onSnapshot((snapshot) => {
+        unsubscribeCallerCandidates = roomRef.collection('callerCandidates').onSnapshot((snapshot) => {
             snapshot.docChanges().forEach(async (change) => {
                 if (change.type === 'added') {
                     const candidate = new RTCIceCandidate(change.doc.data());
@@ -190,6 +191,13 @@ function setupPeerListeners() {
         if (remoteOverlay) remoteOverlay.style.display = "none";
         updateStatus("Connected", "connected");
     };
+
+    peerConnection.onconnectionstatechange = () => {
+        if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
+            updateStatus("Partner Disconnected", "disconnected");
+            if (remoteOverlay) remoteOverlay.style.display = "flex";
+        }
+    };
 }
 
 // 6. FIRESTORE REALTIME CHAT
@@ -207,43 +215,59 @@ function sendMessage() {
 }
 
 function listenForMessages(roomId) {
-    db.collection('rooms').doc(roomId).collection('messages')
-      .orderBy('timestamp', 'asc')
-      .onSnapshot((snapshot) => {
-          snapshot.docChanges().forEach((change) => {
-              if (change.type === "added") {
-                  const data = change.doc.data();
-                  if (!chatMessages) return;
+    unsubscribeMessages = db.collection('rooms').doc(roomId).collection('messages')
+        .orderBy('timestamp', 'asc')
+        .onSnapshot((snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    const data = change.doc.data();
+                    if (!chatMessages) return;
 
-                  const msgDiv = document.createElement('div');
-                  msgDiv.className = `msg ${data.sender === userId ? 'self' : 'other'}`;
-                  msgDiv.innerText = data.text;
-                  
-                  chatMessages.appendChild(msgDiv);
-                  chatMessages.scrollTop = chatMessages.scrollHeight;
-                  
-                  messageCounter++;
-                  if (msgCount) msgCount.innerText = messageCounter;
-              }
-          });
-      });
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = `msg ${data.sender === userId ? 'self' : 'other'}`;
+                    msgDiv.innerText = data.text;
+
+                    chatMessages.appendChild(msgDiv);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                    messageCounter++;
+                    if (msgCount) msgCount.innerText = messageCounter;
+                }
+            });
+        });
 }
 
 // 7. RESET CONNECTION & CLEANUP
-function resetConnection() {
+async function resetConnection() {
     if (unsubscribeRoom) unsubscribeRoom();
+    if (unsubscribeMessages) unsubscribeMessages();
+    if (unsubscribeCallerCandidates) unsubscribeCallerCandidates();
+    if (unsubscribeCalleeCandidates) unsubscribeCalleeCandidates();
+
     if (peerConnection) {
         peerConnection.close();
         peerConnection = null;
     }
+
     if (currentRoomId) {
-        db.collection('rooms').doc(currentRoomId).delete();
-        db.collection('waitingUsers').doc(userId).delete();
+        try {
+            await db.collection('rooms').doc(currentRoomId).delete();
+        } catch (e) { console.error("Room Cleanup Error:", e); }
     }
+
+    if (userId) {
+        try {
+            await db.collection('waitingUsers').doc(userId).delete();
+        } catch (e) { console.error("Waiting Slot Cleanup Error:", e); }
+    }
+
+    currentRoomId = null;
+
     if (remoteVideo) remoteVideo.srcObject = null;
     if (chatMessages) {
         chatMessages.innerHTML = '<div class="system-msg"><i class="fas fa-info-circle"></i> Connected with new partner!</div>';
     }
+
     messageCounter = 0;
     if (msgCount) msgCount.innerText = 0;
 }
@@ -257,7 +281,7 @@ function updateStatus(text, statusClass) {
 }
 
 // 8. EVENT LISTENERS
-document.getElementById('micToggle')?.addEventListener('click', function() {
+document.getElementById('micToggle')?.addEventListener('click', function () {
     if (!localStream) return;
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) {
@@ -266,7 +290,7 @@ document.getElementById('micToggle')?.addEventListener('click', function() {
     }
 });
 
-document.getElementById('camToggle')?.addEventListener('click', function() {
+document.getElementById('camToggle')?.addEventListener('click', function () {
     if (!localStream) return;
     const videoTrack = localStream.getVideoTracks()[0];
     if (videoTrack) {
@@ -277,8 +301,13 @@ document.getElementById('camToggle')?.addEventListener('click', function() {
 });
 
 document.getElementById('nextBtn')?.addEventListener('click', findStranger);
-document.getElementById('endBtn')?.addEventListener('click', resetConnection);
+document.getElementById('endBtn')?.addEventListener('click', async () {
+    await resetConnection();
+    updateStatus("Disconnected", "disconnected");
+    if (remoteOverlay) remoteOverlay.style.display = "flex";
+});
 document.getElementById('sendBtn')?.addEventListener('click', sendMessage);
+
 chatInput?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
 });
@@ -293,7 +322,7 @@ document.getElementById('closeReport')?.addEventListener('click', () => {
 });
 
 document.querySelectorAll('.report-option').forEach(btn => {
-    btn.addEventListener('click', async function() {
+    btn.addEventListener('click', async function () {
         const reason = this.getAttribute('data-reason');
         if (currentRoomId && userId) {
             await db.collection('reports').add({
@@ -309,8 +338,8 @@ document.querySelectorAll('.report-option').forEach(btn => {
     });
 });
 
-document.getElementById('logoutBtn')?.addEventListener('click', () => {
-    resetConnection();
+document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+    await resetConnection();
     auth.signOut();
 });
 
@@ -324,4 +353,4 @@ auth.onAuthStateChanged(async (user) => {
         window.location.href = 'index.html';
     }
 });
-                
+    
