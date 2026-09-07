@@ -1,14 +1,19 @@
 // ============================================
-// CHAT.JS - SINGLE COMPLETE FILE
+// FULLY UPDATED & FIXED CHAT.JS (FIRESTORE)
 // ============================================
 
 let localStream;
 let peerConnection;
 let currentRoomId = null;
 let userId = null;
+let unsubscribeRoom = null;
 
 const servers = {
-    iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }]
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+    ]
 };
 
 // UI Elements
@@ -24,7 +29,7 @@ const msgCount = document.getElementById('msgCount');
 const reportModal = document.getElementById('reportModal');
 let messageCounter = 0;
 
-// 1. INITIALIZE LOCAL CAMERA & MIC
+// 1. CAMERA & MIC INITIALIZATION
 async function startLocalStream() {
     try {
         localStream = await navigator.mediaDevices.getUserMedia({
@@ -34,158 +39,206 @@ async function startLocalStream() {
         if (localVideo) localVideo.srcObject = localStream;
         if (localOverlay) localOverlay.style.display = "none";
         
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        if (loadingOverlay) loadingOverlay.classList.add('hidden');
-        
-        const chatContainer = document.getElementById('chatContainer');
-        if (chatContainer) chatContainer.style.display = 'flex';
+        document.getElementById('loadingOverlay')?.classList.add('hidden');
+        document.getElementById('chatContainer')?.setAttribute('style', 'display: flex !important');
     } catch (err) {
-        console.error("Camera/Mic permission error:", err);
-        alert("Camera & Microphone access is required to use video chat!");
+        console.error("Camera/Mic Permission Error:", err);
+        alert("Camera and Microphone access is required for video chat!");
     }
 }
 
-// 2. MATCHMAKING VIA REALTIME DATABASE
+// 2. FIRESTORE MATCHMAKING
 async function findStranger() {
     resetConnection();
-    if (statusText) statusText.innerText = "Searching...";
-    if (statusBadge) {
-        const dot = statusBadge.querySelector('.status-dot');
-        if (dot) dot.className = "status-dot searching";
-    }
+    updateStatus("Searching...", "searching");
     if (remoteOverlay) remoteOverlay.style.display = "flex";
 
-    const waitingRef = database.ref('waitingUsers');
-    const snap = await waitingRef.once('value');
-    const waitingUsers = snap.val();
+    try {
+        const waitingRef = db.collection('waitingUsers');
+        const snapshot = await waitingRef.limit(1).get();
 
-    if (waitingUsers) {
-        // Match with an existing user in the waiting queue
-        const strangerId = Object.keys(waitingUsers)[0];
-        if (strangerId !== userId) {
-            currentRoomId = `${strangerId}_${userId}`;
-            await waitingRef.child(strangerId).remove();
-            createPeerConnection(currentRoomId, false);
-            return;
+        if (!snapshot.empty) {
+            // SCENARIO A: Partner Found (Join existing queue)
+            const waitingDoc = snapshot.docs[0];
+            const strangerId = waitingDoc.id;
+
+            if (strangerId !== userId) {
+                currentRoomId = `${strangerId}_${userId}`;
+                await waitingRef.doc(strangerId).delete();
+                await joinRoom(currentRoomId);
+                return;
+            }
         }
+
+        // SCENARIO B: No Partner Found (Create waiting slot & room)
+        currentRoomId = userId;
+        await waitingRef.doc(userId).set({
+            created: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        await createRoom(currentRoomId);
+
+    } catch (error) {
+        console.error("Matchmaking Error:", error);
     }
-
-    // No waiting user found; place self into waiting queue
-    currentRoomId = userId;
-    await waitingRef.child(userId).set(true);
-
-    database.ref(`rooms/${userId}`).on('value', async (snap) => {
-        const data = snap.val();
-        if (data && data.offer && !peerConnection) {
-            createPeerConnection(userId, true);
-        }
-    });
 }
 
-// 3. WEBRTC HANDSHAKE & SIGNALING
-async function createPeerConnection(roomId, isAnswerer) {
+// 3. CREATE ROOM (CALLER / OFFERER)
+async function createRoom(roomId) {
+    const roomRef = db.collection('rooms').doc(roomId);
+    
     peerConnection = new RTCPeerConnection(servers);
+    setupPeerListeners();
 
-    // Add local tracks to WebRTC
-    if (localStream) {
-        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-    }
-
-    // Display remote stream when received
-    peerConnection.ontrack = (event) => {
-        if (remoteVideo) remoteVideo.srcObject = event.streams[0];
-        if (remoteOverlay) remoteOverlay.style.display = "none";
-        if (statusText) statusText.innerText = "Connected";
-        if (statusBadge) {
-            const dot = statusBadge.querySelector('.status-dot');
-            if (dot) dot.className = "status-dot connected";
-        }
-    };
-
-    const roomRef = database.ref(`rooms/${roomId}`);
-
-    // Send ICE candidates
+    const callerCandidates = roomRef.collection('callerCandidates');
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-            roomRef.child(isAnswerer ? 'answerCandidates' : 'offerCandidates').push(event.candidate.toJSON());
+            callerCandidates.add(event.candidate.toJSON());
         }
     };
 
-    if (!isAnswerer) {
-        // Offerer Flow
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        await roomRef.set({ offer: { type: offer.type, sdp: offer.sdp } });
+    // Create WebRTC Offer
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
 
-        roomRef.child('answer').on('value', async (snap) => {
-            const answer = snap.val();
-            if (answer && !peerConnection.currentRemoteDescription) {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    // FIX: Parent Document Direct Create (Fixes 'document does not exist' error)
+    await roomRef.set({
+        offer: {
+            type: offer.type,
+            sdp: offer.sdp
+        },
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Listen for Callee Answer
+    unsubscribeRoom = roomRef.onSnapshot(async (snapshot) => {
+        const data = snapshot.data();
+        if (data && data.answer && !peerConnection.currentRemoteDescription) {
+            const rtcSessionDescription = new RTCSessionDescription(data.answer);
+            await peerConnection.setRemoteDescription(rtcSessionDescription);
+        }
+    });
+
+    // Listen for Callee ICE Candidates
+    roomRef.collection('calleeCandidates').onSnapshot((snapshot) => {
+        snapshot.docChanges().forEach(async (change) => {
+            if (change.type === 'added') {
+                const candidate = new RTCIceCandidate(change.doc.data());
+                await peerConnection.addIceCandidate(candidate);
             }
         });
-
-        roomRef.child('answerCandidates').on('child_added', (snap) => {
-            peerConnection.addIceCandidate(new RTCIceCandidate(snap.val()));
-        });
-    } else {
-        // Answerer Flow
-        const roomData = (await roomRef.once('value')).val();
-        if (roomData && roomData.offer) {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(roomData.offer));
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            await roomRef.child('answer').set({ type: answer.type, sdp: answer.sdp });
-
-            roomRef.child('offerCandidates').on('child_added', (snap) => {
-                peerConnection.addIceCandidate(new RTCIceCandidate(snap.val()));
-            });
-        }
-    }
+    });
 
     listenForMessages(roomId);
 }
 
-// 4. REAL-TIME TEXT CHAT
+// 4. JOIN ROOM (CALLEE / ANSWERER)
+async function joinRoom(roomId) {
+    const roomRef = db.collection('rooms').doc(roomId);
+    const roomDoc = await roomRef.get();
+
+    if (roomDoc.exists) {
+        peerConnection = new RTCPeerConnection(servers);
+        setupPeerListeners();
+
+        const calleeCandidates = roomRef.collection('calleeCandidates');
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                calleeCandidates.add(event.candidate.toJSON());
+            }
+        };
+
+        const offer = roomDoc.data().offer;
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+        // Create WebRTC Answer
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        // Update Parent Document with Answer
+        await roomRef.update({
+            answer: {
+                type: answer.type,
+                sdp: answer.sdp
+            }
+        });
+
+        // Listen for Caller ICE Candidates
+        roomRef.collection('callerCandidates').onSnapshot((snapshot) => {
+            snapshot.docChanges().forEach(async (change) => {
+                if (change.type === 'added') {
+                    const candidate = new RTCIceCandidate(change.doc.data());
+                    await peerConnection.addIceCandidate(candidate);
+                }
+            });
+        });
+
+        listenForMessages(roomId);
+    }
+}
+
+// 5. MEDIA TRACKS & REMOTE STREAM SETUP
+function setupPeerListeners() {
+    if (localStream) {
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+    }
+
+    peerConnection.ontrack = (event) => {
+        if (remoteVideo) remoteVideo.srcObject = event.streams[0];
+        if (remoteOverlay) remoteOverlay.style.display = "none";
+        updateStatus("Connected", "connected");
+    };
+}
+
+// 6. FIRESTORE REALTIME CHAT
 function sendMessage() {
     if (!chatInput) return;
     const text = chatInput.value.trim();
     if (text && currentRoomId) {
-        database.ref(`messages/${currentRoomId}`).push({
+        db.collection('rooms').doc(currentRoomId).collection('messages').add({
             sender: userId,
             text: text,
-            timestamp: Date.now()
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
         chatInput.value = '';
     }
 }
 
 function listenForMessages(roomId) {
-    database.ref(`messages/${roomId}`).on('child_added', (snap) => {
-        const data = snap.val();
-        if (!chatMessages) return;
+    db.collection('rooms').doc(roomId).collection('messages')
+      .orderBy('timestamp', 'asc')
+      .onSnapshot((snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+              if (change.type === "added") {
+                  const data = change.doc.data();
+                  if (!chatMessages) return;
 
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `msg ${data.sender === userId ? 'self' : 'other'}`;
-        msgDiv.innerText = data.text;
-        
-        chatMessages.appendChild(msgDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        
-        messageCounter++;
-        if (msgCount) msgCount.innerText = messageCounter;
-    });
+                  const msgDiv = document.createElement('div');
+                  msgDiv.className = `msg ${data.sender === userId ? 'self' : 'other'}`;
+                  msgDiv.innerText = data.text;
+                  
+                  chatMessages.appendChild(msgDiv);
+                  chatMessages.scrollTop = chatMessages.scrollHeight;
+                  
+                  messageCounter++;
+                  if (msgCount) msgCount.innerText = messageCounter;
+              }
+          });
+      });
 }
 
-// 5. RESET & CLEANUP
+// 7. RESET CONNECTION & CLEANUP
 function resetConnection() {
+    if (unsubscribeRoom) unsubscribeRoom();
     if (peerConnection) {
         peerConnection.close();
         peerConnection = null;
     }
     if (currentRoomId) {
-        database.ref(`rooms/${currentRoomId}`).remove();
-        database.ref(`messages/${currentRoomId}`).remove();
-        database.ref('waitingUsers').child(userId).remove();
+        db.collection('rooms').doc(currentRoomId).delete();
+        db.collection('waitingUsers').doc(userId).delete();
     }
     if (remoteVideo) remoteVideo.srcObject = null;
     if (chatMessages) {
@@ -195,7 +248,15 @@ function resetConnection() {
     if (msgCount) msgCount.innerText = 0;
 }
 
-// 6. MEDIA CONTROL EVENT LISTENERS
+function updateStatus(text, statusClass) {
+    if (statusText) statusText.innerText = text;
+    if (statusBadge) {
+        const dot = statusBadge.querySelector('.status-dot');
+        if (dot) dot.className = `status-dot ${statusClass}`;
+    }
+}
+
+// 8. EVENT LISTENERS
 document.getElementById('micToggle')?.addEventListener('click', function() {
     if (!localStream) return;
     const audioTrack = localStream.getAudioTracks()[0];
@@ -215,7 +276,6 @@ document.getElementById('camToggle')?.addEventListener('click', function() {
     }
 });
 
-// Navigation & Actions
 document.getElementById('nextBtn')?.addEventListener('click', findStranger);
 document.getElementById('endBtn')?.addEventListener('click', resetConnection);
 document.getElementById('sendBtn')?.addEventListener('click', sendMessage);
@@ -223,7 +283,7 @@ chatInput?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
 });
 
-// Report Modal Listeners
+// Report System
 document.getElementById('reportBtn')?.addEventListener('click', () => {
     if (reportModal) reportModal.style.display = 'flex';
 });
@@ -236,11 +296,11 @@ document.querySelectorAll('.report-option').forEach(btn => {
     btn.addEventListener('click', async function() {
         const reason = this.getAttribute('data-reason');
         if (currentRoomId && userId) {
-            await database.ref('reports').push({
+            await db.collection('reports').add({
                 reporter: userId,
                 roomId: currentRoomId,
                 reason: reason,
-                timestamp: Date.now()
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
             alert('User reported successfully.');
         }
@@ -254,7 +314,7 @@ document.getElementById('logoutBtn')?.addEventListener('click', () => {
     auth.signOut();
 });
 
-// 7. FIREBASE AUTH STATE LISTENER
+// 9. AUTH STATE LISTENER
 auth.onAuthStateChanged(async (user) => {
     if (user) {
         userId = user.uid;
@@ -264,3 +324,4 @@ auth.onAuthStateChanged(async (user) => {
         window.location.href = 'index.html';
     }
 });
+                
